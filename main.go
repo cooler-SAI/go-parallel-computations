@@ -2,54 +2,58 @@ package main
 
 import (
 	"fmt"
-	"math/big"
 	"sync"
 	"time"
 )
 
-func calculateFactorial(n int, result chan<- *big.Int, wg *sync.WaitGroup) {
-
-	fmt.Printf("Starting factorial calculation for %d...\n", n)
-	res := big.NewInt(1)
-	for i := 2; i <= n; i++ {
-		res.Mul(res, big.NewInt(int64(i)))
-	}
-	fmt.Printf("Factorial of %d is %s\n", n, res.String())
-	time.Sleep(2 * time.Second)
-	fmt.Printf("Finished factorial calculation for %d\n", n)
-	result <- res
-}
-
-func findPrimes(count int, resultChan chan<- []int, wg *sync.WaitGroup) {
+func senderGoroutine(name string, message string, outChan chan<- string, wg *sync.WaitGroup) {
 	defer wg.Done()
-
-	fmt.Printf("Starting search for the first %d prime numbers...\n", count)
-	var primes []int
-	num := 2
-	for len(primes) < count {
-		if isPrime(num) {
-			primes = append(primes, num)
-		}
-		num++
-	}
-	time.Sleep(1 * time.Second)
-	fmt.Printf("Finished searching for the first %d prime numbers.\n", count)
-
-	resultChan <- primes
+	fmt.Printf("%s: Sending the message: \"%s\"\n", name, message)
+	time.Sleep(500 * time.Millisecond)
+	outChan <- message
 }
 
-func isPrime(n int) bool {
-	if n < 2 {
-		return false
-	}
-	for i := 2; i*i <= n; i++ {
-		if n%i == 0 {
-			return false
-		}
-	}
-	return true
+func receiverGoroutine(name string, inChan <-chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	fmt.Printf("%s: Waiting for the message...\n", name)
+	msg := <-inChan
+	fmt.Printf("%s: Message received: \"%s\"\n", name, msg)
+}
+
+func sender(out chan<- string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	out <- "Hello"
+}
+
+func receiver(in <-chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	msg := <-in
+	fmt.Println("Additional receiver got:", msg)
 }
 
 func main() {
+	fmt.Println("Beginning of messaging...")
 
+	messageChannel := make(chan string)
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go receiverGoroutine("Receiver 1", messageChannel, &wg)
+
+	wg.Add(1)
+	go senderGoroutine("Sender 1", "Hello! Where are you?", messageChannel, &wg)
+
+	additionalChannel := make(chan string, 1)
+	wg.Add(2)
+	go sender(additionalChannel, &wg)
+	go receiver(additionalChannel, &wg)
+
+	wg.Wait()
+
+	close(messageChannel)
+	close(additionalChannel)
+	fmt.Println("All channels closed.")
+
+	fmt.Println("Messaging finished.")
 }
