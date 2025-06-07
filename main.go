@@ -22,13 +22,28 @@ func receiverGoroutine(name string, inChan <-chan string, wg *sync.WaitGroup) {
 
 func sender(out chan<- string, wg *sync.WaitGroup) {
 	defer wg.Done()
+	time.Sleep(1000 * time.Millisecond)
 	out <- "Hello"
 }
 
 func receiver(in <-chan string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	msg := <-in
-	fmt.Println("Additional receiver got:", msg)
+	fmt.Println("Additional Receiver 2 got:", msg)
+}
+
+func newSender(name string, out chan<- string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	time.Sleep(1500 * time.Millisecond)
+	fmt.Printf("%s: Waiting for the message...\n", name)
+	out <- "Hey all Here!!!"
+}
+
+func newReceiver(name string, in <-chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	msg := <-in
+	fmt.Printf("%s: New Receiver\n", name)
+	fmt.Println(name, "got:", msg)
 }
 
 func main() {
@@ -49,10 +64,16 @@ func main() {
 	go sender(additionalChannel, &wg)
 	go receiver(additionalChannel, &wg)
 
+	newChannel := make(chan string)
+	wg.Add(2)
+	go newReceiver("Receiver 2", newChannel, &wg)
+	go newSender("Sender 2", newChannel, &wg)
+
 	wg.Wait()
 
 	close(messageChannel)
 	close(additionalChannel)
+	close(newChannel)
 	fmt.Println("All channels closed.")
 
 	fmt.Println("Messaging finished.")
